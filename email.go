@@ -277,8 +277,6 @@ func (email *Email) AddAddresses(header string, addresses ...string) *Email {
 
 		// check for more than one address
 		switch {
-		case header == "From" && len(email.from) > 0:
-			fallthrough
 		case header == "Sender" && len(email.sender) > 0:
 			fallthrough
 		case header == "Reply-To" && len(email.replyTo) > 0:
@@ -293,6 +291,11 @@ func (email *Email) AddAddresses(header string, addresses ...string) *Email {
 		// save the address
 		switch header {
 		case "From":
+			// delete the current "From" to set the new
+			// when "From" need to be changed in the message
+			if len(email.from) > 0 && header == "From" {
+				email.headers.Del("From")
+			}
 			email.from = address.Address
 		case "Sender":
 			email.sender = address.Address
@@ -723,9 +726,18 @@ func (email *Email) GetMessage() string {
 
 // Send sends the composed email
 func (email *Email) Send(client *SMTPClient) error {
+	return email.SendEnvelopeFrom(email.from, client)
+}
 
+// SendEnvelopeFrom sends the composed email with envelope
+// sender. 'from' must be an email address.
+func (email *Email) SendEnvelopeFrom(from string, client *SMTPClient) error {
 	if email.Error != nil {
 		return email.Error
+	}
+
+	if from == "" {
+		from = email.from
 	}
 
 	if len(email.recipients) < 1 {
@@ -734,8 +746,7 @@ func (email *Email) Send(client *SMTPClient) error {
 
 	msg := email.GetMessage()
 
-	return send(email.from, email.recipients, msg, client)
-
+	return send(from, email.recipients, msg, client)
 }
 
 // dial connects to the smtp server with the request encryption type
